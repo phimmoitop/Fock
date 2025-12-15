@@ -46,7 +46,7 @@ jobs:
       # =======================
      - name: Create private repository (if not exists)
   run: |
-    OWNER="${{ inputs.github_account }}"
+    OWNER="${{ inputs.account }}"
     REPO="${{ inputs.slug }}"
     TOKEN="${{ inputs.token }}"
 
