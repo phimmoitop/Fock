@@ -22,15 +22,19 @@ jobs:
 
     steps:
       # =======================
-      # Install ffmpeg + tools
+      # Setup FFmpeg (prebuilt)
       # =======================
-      - name: Install ffmpeg and tools
-        run: |
-          sudo apt update
-          sudo apt install -y ffmpeg curl git jq
+      - name: Setup FFmpeg
+        uses: FedericoCarboni/setup-ffmpeg@v2
 
       # =======================
-      # b1: Create private repo (idempotent)
+      # Install small tools only
+      # =======================
+      - name: Install tools
+        run: sudo apt update && sudo apt install -y curl git jq
+
+      # =======================
+      # b1: Create private repo
       # =======================
       - name: Create private repository
         run: |
@@ -52,11 +56,17 @@ jobs:
           fi
 
       # =======================
-      # b2: Download m3u8 → mp4 (ổn định)
+      # b2: Download m3u8 → mp4 (clean log)
       # =======================
       - name: Download m3u8 to mp4
         run: |
-          ffmpeg -i "${{ inputs.link }}" -c copy -bsf:a aac_adtstoasc "${{ inputs.slug }}.mp4"
+          ffmpeg -y \
+            -loglevel error \
+            -stats \
+            -i "${{ inputs.link }}" \
+            -c copy \
+            -bsf:a aac_adtstoasc \
+            "${{ inputs.slug }}.mp4"
 
       # =======================
       # b3: Verify mp4
@@ -65,27 +75,28 @@ jobs:
         run: |
           FILE="${{ inputs.slug }}.mp4"
 
-            if [ ! -f "$FILE" ]; then
-              echo "File not found"
+          if [ ! -f "$FILE" ]; then
+            echo "File not found"
             exit 1
-            fi
+          fi
 
           SIZE=$(stat -c%s "$FILE")
           if [ "$SIZE" -lt 1000000 ]; then
-          echo "File too small: $SIZE bytes"
-          exit 1
+            echo "File too small: $SIZE bytes"
+            exit 1
           fi
 
           echo "Verify OK: $SIZE bytes"
 
       # =======================
-      # b4: Convert mp4 → HLS (m3u8)
+      # b4: Convert mp4 → HLS
       # =======================
       - name: Convert mp4 to HLS
         run: |
           mkdir -p output
           ffmpeg -y \
             -loglevel error \
+            -stats \
             -i "${{ inputs.slug }}.mp4" \
             -codec copy \
             -hls_time 8 \
@@ -96,17 +107,15 @@ jobs:
             -f hls "output/${{ inputs.slug }}.m3u8"
 
       # =======================
-      # b5: Upload HLS to repo
+      # b5: Upload HLS
       # =======================
       - name: Push HLS to repo
         run: |
           git clone https://x-access-token:${{ inputs.token }}@github.com/${{ inputs.account }}/${{ inputs.slug }}.git repo
           cd repo
-
           cp -r ../output .
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
-
           git add .
           git commit -m "Upload HLS for ${{ inputs.slug }}" || true
           git push origin main
@@ -130,7 +139,7 @@ jobs:
             --data-urlencode "slug=${{ inputs.slug }}"
 
       # =======================
-      # b6: FAILURE callback
+      # FAILURE callback
       # =======================
       - name: Callback failure
         if: failure()
