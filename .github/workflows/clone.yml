@@ -4,16 +4,16 @@ on:
   workflow_dispatch:
     inputs:
       link:
-        description: "Link m3u8"
+        description: "Link"
         required: true
       slug:
-        description: "Slug (filename + repo)"
+        description: "Slug"
         required: true
       account:
-        description: "GitHub account"
+        description: "Account"
         required: true
       token:
-        description: "GitHub token"
+        description: "Token"
         required: true
 
 jobs:
@@ -60,13 +60,7 @@ jobs:
       # =======================
       - name: Download m3u8 to mp4
         run: |
-          ffmpeg -y \
-            -loglevel error \
-            -stats \
-            -i "${{ inputs.link }}" \
-            -c copy \
-            -bsf:a aac_adtstoasc \
-            "${{ inputs.slug }}.mp4"
+          ffmpeg -stats -i "${{ inputs.link }}" -c copy -bsf:a aac_adtstoasc "${{ inputs.slug }}.mp4"
 
       # =======================
       # b3: Verify mp4
