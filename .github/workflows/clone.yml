@@ -81,9 +81,12 @@ jobs:
           mkdir -p output
 
           ffmpeg -y \
-            -loglevel error \
+            -loglevel warning \
+            -fflags +genpts \
             -i "${{ inputs.link }}" \
-            -codec copy \
+            -c:v copy \
+            -c:a copy \
+            -bsf:a aac_adtstoasc \
             -hls_time 8 \
             -hls_flags split_by_time+independent_segments \
             -start_number 10001 \
