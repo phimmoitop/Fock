@@ -62,21 +62,21 @@ jobs:
       # b3: Verify mp4
       # =======================
       - name: Verify mp4
-  run: |
-    FILE="${{ inputs.slug }}.mp4"
+        run: |
+          FILE="${{ inputs.slug }}.mp4"
 
-    if [ ! -f "$FILE" ]; then
-      echo "File not found"
-      exit 1
-    fi
+            if [ ! -f "$FILE" ]; then
+              echo "File not found"
+            exit 1
+            fi
 
-    SIZE=$(stat -c%s "$FILE")
-    if [ "$SIZE" -lt 1000000 ]; then
-      echo "File too small: $SIZE bytes"
-      exit 1
-    fi
+          SIZE=$(stat -c%s "$FILE")
+          if [ "$SIZE" -lt 1000000 ]; then
+          echo "File too small: $SIZE bytes"
+          exit 1
+          fi
 
-    echo "Verify OK: $SIZE bytes"
+          echo "Verify OK: $SIZE bytes"
 
       # =======================
       # b4: Convert mp4 → HLS (m3u8)
