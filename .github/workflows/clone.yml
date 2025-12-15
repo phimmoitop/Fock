@@ -44,20 +44,37 @@ jobs:
       # =======================
       # b1: Create private repo
       # =======================
-      - name: Create private repository
-        run: |
-          RESPONSE=$(curl -s -X POST https://api.github.com/user/repos \
-            -H "Authorization: token ${{ inputs.token }}" \
-            -H "Accept: application/vnd.github+json" \
-            -d "{
-              \"name\": \"${{ inputs.slug }}\",
-              \"private\": true
-            }")
+     - name: Create private repository (if not exists)
+  run: |
+    OWNER="${{ inputs.github_account }}"
+    REPO="${{ inputs.slug }}"
+    TOKEN="${{ inputs.token }}"
 
-          echo "$RESPONSE" | jq -e '.id' > /dev/null || {
-            echo "Create repo failed"
-            exit 1
-          }
+    # 1. Check repo exists
+    STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+      -H "Authorization: token $TOKEN" \
+      https://api.github.com/repos/$OWNER/$REPO)
+
+    if [ "$STATUS" = "200" ]; then
+      echo "Repo already exists, skip creation"
+      exit 0
+    fi
+
+    # 2. Create repo
+    RESPONSE=$(curl -s -X POST https://api.github.com/user/repos \
+      -H "Authorization: token $TOKEN" \
+      -H "Accept: application/vnd.github+json" \
+      -d "{
+        \"name\": \"$REPO\",
+        \"private\": true
+      }")
+
+    echo "$RESPONSE" | jq -e '.id' > /dev/null || {
+      echo "Create repo failed"
+      echo "$RESPONSE"
+      exit 1
+    }
+
 
       # =======================
       # b2: Download m3u8 → mp4
