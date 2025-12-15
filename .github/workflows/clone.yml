@@ -22,16 +22,12 @@ jobs:
 
     steps:
       # =======================
-      # Setup FFmpeg (prebuilt)
+      # Setup FFmpeg
       # =======================
-      - name: Setup FFmpeg
-        uses: FedericoCarboni/setup-ffmpeg@v2
-
-      # =======================
-      # Install small tools only
-      # =======================
-      - name: Install tools
-        run: sudo apt update && sudo apt install -y curl git jq
+      - name: Install ffmpeg
+        run: |
+          sudo apt update
+          sudo apt install -y ffmpeg curl git jq
 
       # =======================
       # b1: Create private repo
