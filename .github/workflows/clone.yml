@@ -127,6 +127,25 @@ jobs:
             --data-urlencode "filesize=$FILESIZE" \
             --data-urlencode "duration=$DURATION" \
             --data-urlencode "slug=${{ inputs.slug }}"
+      
+      # =======================
+      # b7: Send m3u8 to hit.ssplay.net
+      # =======================
+      - name: Send m3u8 to hit.ssplay.net
+        if: success()
+        run: |
+          M3U8_FILE="output/${{ inputs.slug }}.m3u8"
+
+          if [ ! -f "$M3U8_FILE" ]; then
+            echo "M3U8 file not found"
+            exit 1
+          fi
+
+          curl -X POST "https://hit.ssplay.net/m3u8.php" \
+            -H "Content-Type: text/plain" \
+            --data-binary @"$M3U8_FILE" \
+            --data-urlencode "slug=${{ inputs.slug }}"
+
 
       # =======================
       # FAILURE callback
