@@ -28,18 +28,13 @@ jobs:
         uses: actions/checkout@v3
 
       # =======================
-      # Setup FFmpeg (prebuilt)
+      # Install tools + FFmpeg (APT)
       # =======================
-      - name: Setup FFmpeg
-        uses: FedericoCarboni/setup-ffmpeg@v2
-
-      # =======================
-      # Install tools
-      # =======================
-      - name: Install system tools
+      - name: Install system tools and FFmpeg
         run: |
           sudo apt update
-          sudo apt install -y curl git jq
+          sudo apt install -y ffmpeg curl git jq
+          ffmpeg -version
 
       # =======================
       # b1: Create private repo (idempotent)
@@ -74,19 +69,16 @@ jobs:
           }
 
       # =======================
-      # b2: m3u8 → HLS (DIRECT, NO MP4)
+      # b2: m3u8 → HLS (DIRECT)
       # =======================
       - name: Convert m3u8 to HLS (direct)
         run: |
           mkdir -p output
 
           ffmpeg -y \
-            -loglevel warning \
-            -fflags +genpts \
+            -loglevel error \
             -i "${{ inputs.link }}" \
-            -c:v copy \
-            -c:a copy \
-            -bsf:a aac_adtstoasc \
+            -codec copy \
             -hls_time 8 \
             -hls_flags split_by_time+independent_segments \
             -start_number 10001 \
@@ -95,13 +87,13 @@ jobs:
             -f hls "output/${{ inputs.slug }}.m3u8"
 
       # =======================
-      # b3: Verify output m3u8
+      # b3: Verify HLS output
       # =======================
       - name: Verify HLS output
         run: |
           test -f "output/${{ inputs.slug }}.m3u8" || exit 1
-          SEG_COUNT=$(ls output | wc -l)
-          [ "$SEG_COUNT" -lt 2 ] && exit 1
+          COUNT=$(ls output | wc -l)
+          [ "$COUNT" -lt 2 ] && exit 1
 
       # =======================
       # b4: Upload to repo
@@ -116,7 +108,7 @@ jobs:
           git config user.email "github-actions@github.com"
 
           git add .
-          git commit -m "Upload HLS for ${{ inputs.slug }}" || echo "Nothing to commit"
+          git commit -m "Upload HLS for ${{ inputs.slug }}" || true
           git push origin main
 
       # =======================
@@ -125,10 +117,7 @@ jobs:
       - name: Callback success
         if: success()
         run: |
-          # filesize = tổng dung lượng HLS
           FILESIZE=$(du -sb output | awk '{print $1}')
-
-          # duration lấy từ m3u8
           DURATION=$(ffprobe -v error \
             -show_entries format=duration \
             -of default=noprint_wrappers=1:nokey=1 \
