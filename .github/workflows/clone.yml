@@ -66,8 +66,7 @@ jobs:
         run: |
           ffmpeg -y -loglevel error \
             -i "${{ inputs.link }}" \
-            -c copy \
-            -bsf:a aac_adtstoasc \
+            -c copy -c:a aac -movflags +faststart \
             "${{ inputs.slug }}.mp4"
 
       # =======================
