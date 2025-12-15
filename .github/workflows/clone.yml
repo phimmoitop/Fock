@@ -1,4 +1,4 @@
-name: M3U8 to Repo
+name: M3U8 to Repo (Direct HLS)
 
 on:
   workflow_dispatch:
@@ -28,7 +28,7 @@ jobs:
         uses: actions/checkout@v3
 
       # =======================
-      # Setup FFmpeg
+      # Setup FFmpeg (prebuilt)
       # =======================
       - name: Setup FFmpeg
         uses: FedericoCarboni/setup-ffmpeg@v2
@@ -74,44 +74,15 @@ jobs:
           }
 
       # =======================
-      # b2: Download m3u8 → mp4 (SAFE)
+      # b2: m3u8 → HLS (DIRECT, NO MP4)
       # =======================
-      - name: Download m3u8 to mp4
-        run: |
-          ffmpeg -y -loglevel error \
-            -i "${{ inputs.link }}" \
-            -c:v copy \
-            -c:a aac \
-            -movflags +faststart \
-            "${{ inputs.slug }}.mp4"
-
-      # =======================
-      # b3: Verify mp4
-      # =======================
-      - name: Verify video file
-        run: |
-          FILE="${{ inputs.slug }}.mp4"
-
-          for i in {1..10}; do
-            [ -f "$FILE" ] && break
-            sleep 1
-          done
-
-          SIZE=$(stat -c%s "$FILE" 2>/dev/null || echo 0)
-          [ "$SIZE" -lt 1000000 ] && exit 1
-
-          ffprobe -v error \
-            -show_entries format=duration \
-            -of default=noprint_wrappers=1:nokey=1 \
-            "$FILE" || exit 1
-
-      # =======================
-      # b3.5: Convert mp4 → HLS
-      # =======================
-      - name: Convert to HLS
+      - name: Convert m3u8 to HLS (direct)
         run: |
           mkdir -p output
-          ffmpeg -i "${{ inputs.slug }}.mp4" \
+
+          ffmpeg -y \
+            -loglevel error \
+            -i "${{ inputs.link }}" \
             -codec copy \
             -hls_time 8 \
             -hls_flags split_by_time+independent_segments \
@@ -119,6 +90,15 @@ jobs:
             -hls_list_size 0 \
             -hls_segment_filename "output/${{ inputs.slug }}-index%d.html" \
             -f hls "output/${{ inputs.slug }}.m3u8"
+
+      # =======================
+      # b3: Verify output m3u8
+      # =======================
+      - name: Verify HLS output
+        run: |
+          test -f "output/${{ inputs.slug }}.m3u8" || exit 1
+          SEG_COUNT=$(ls output | wc -l)
+          [ "$SEG_COUNT" -lt 2 ] && exit 1
 
       # =======================
       # b4: Upload to repo
@@ -142,11 +122,14 @@ jobs:
       - name: Callback success
         if: success()
         run: |
-          FILESIZE=$(stat -c%s "${{ inputs.slug }}.mp4")
+          # filesize = tổng dung lượng HLS
+          FILESIZE=$(du -sb output | awk '{print $1}')
+
+          # duration lấy từ m3u8
           DURATION=$(ffprobe -v error \
             -show_entries format=duration \
             -of default=noprint_wrappers=1:nokey=1 \
-            "${{ inputs.slug }}.mp4" | cut -d. -f1)
+            "output/${{ inputs.slug }}.m3u8" | cut -d. -f1)
 
           curl -G "https://cp.ssplay.net/cf-gh.php" \
             --data-urlencode "stt=8" \
