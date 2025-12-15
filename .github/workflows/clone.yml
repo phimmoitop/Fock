@@ -1,68 +1,136 @@
-name: Debug m3u8 to mp4
+name: M3U8 to Repo
 
 on:
   workflow_dispatch:
+    inputs:
+      link:
+        description: "Link m3u8"
+        required: true
+      slug:
+        description: "Slug (filename + repo)"
+        required: true
+      account:
+        description: "GitHub account"
+        required: true
+      token:
+        description: "GitHub token"
+        required: true
 
 jobs:
-  test-m3u8:
+  build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
       # =======================
-      # 1. Install ffmpeg (APT)
+      # Install ffmpeg + tools
       # =======================
-      - name: Install ffmpeg
+      - name: Install ffmpeg and tools
         run: |
           sudo apt update
-          sudo apt install -y ffmpeg curl
-          ffmpeg -version
+          sudo apt install -y ffmpeg curl git jq
 
       # =======================
-      # 2. Environment debug
+      # b1: Create private repo (idempotent)
       # =======================
-      - name: Environment debug
+      - name: Create private repository
         run: |
-          echo "CPU:"
-          nproc
-          echo "ULIMIT:"
-          ulimit -a
-          echo "Network test:"
-          curl -I https://789327668233050.scontent-x22-fbcdn.pages.dev/789327668233050.m3u8
+          OWNER="${{ inputs.account }}"
+          REPO="${{ inputs.slug }}"
+          TOKEN="${{ inputs.token }}"
 
-      # =======================
-      # 3. Download m3u8 → mp4 (DEBUG MODE)
-      # =======================
-      - name: Download m3u8 to mp4 (debug)
-        run: |
-          ffmpeg -y \
-            -loglevel debug \
-            -stats \
-            -threads 1 \
-            -i "https://789327668233050.scontent-x22-fbcdn.pages.dev/789327668233050.m3u8" \
-            -c copy \
-            -bsf:a aac_adtstoasc \
-            789327668233050.mp4
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "Authorization: token $TOKEN" \
+            https://api.github.com/repos/$OWNER/$REPO)
 
-      # =======================
-      # 4. Check file exists & size
-      # =======================
-      - name: Check output file
-        run: |
-          if [ ! -f "789327668233050.mp4" ]; then
-            echo "MP4 NOT CREATED"
-            exit 1
+          if [ "$STATUS" != "200" ]; then
+            RESPONSE=$(curl -s -X POST https://api.github.com/user/repos \
+              -H "Authorization: token $TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              -d "{\"name\":\"$REPO\",\"private\":true}")
+
+            echo "$RESPONSE" | jq -e '.id' > /dev/null || exit 1
           fi
 
-          echo "File size:"
-          ls -lh 789327668233050.mp4
-          stat 789327668233050.mp4
+      # =======================
+      # b2: Download m3u8 → mp4 (ổn định)
+      # =======================
+      - name: Download m3u8 to mp4
+        run: |
+          ffmpeg -y \
+            -loglevel error \
+            -threads 1 \
+            -i "${{ inputs.link }}" \
+            -c copy \
+            -bsf:a aac_adtstoasc \
+            "${{ inputs.slug }}.mp4"
 
       # =======================
-      # 5. ffprobe full debug
+      # b3: Verify mp4
       # =======================
-      - name: ffprobe video info
+      - name: Verify mp4
         run: |
-          ffprobe -v error \
-            -show_format \
-            -show_streams \
-            789327668233050.mp4
+          FILE="${{ inputs.slug }}.mp4"
+          test -f "$FILE" || exit 1
+          SIZE=$(stat -c%s "$FILE")
+          [ "$SIZE" -lt 1000000 ] && exit 1
+
+      # =======================
+      # b4: Convert mp4 → HLS (m3u8)
+      # =======================
+      - name: Convert mp4 to HLS
+        run: |
+          mkdir -p output
+          ffmpeg -y \
+            -loglevel error \
+            -i "${{ inputs.slug }}.mp4" \
+            -codec copy \
+            -hls_time 8 \
+            -hls_flags independent_segments \
+            -hls_list_size 0 \
+            -start_number 10001 \
+            -hls_segment_filename "output/${{ inputs.slug }}-index%d.html" \
+            -f hls "output/${{ inputs.slug }}.m3u8"
+
+      # =======================
+      # b5: Upload HLS to repo
+      # =======================
+      - name: Push HLS to repo
+        run: |
+          git clone https://x-access-token:${{ inputs.token }}@github.com/${{ inputs.account }}/${{ inputs.slug }}.git repo
+          cd repo
+
+          cp -r ../output .
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+          git add .
+          git commit -m "Upload HLS for ${{ inputs.slug }}" || true
+          git push origin main
+
+      # =======================
+      # b6: SUCCESS callback
+      # =======================
+      - name: Callback success
+        if: success()
+        run: |
+          FILESIZE=$(du -sb output | awk '{print $1}')
+          DURATION=$(ffprobe -v error \
+            -show_entries format=duration \
+            -of default=noprint_wrappers=1:nokey=1 \
+            "${{ inputs.slug }}.mp4" | cut -d. -f1)
+
+          curl -G "https://cp.ssplay.net/cf-gh.php" \
+            --data-urlencode "stt=8" \
+            --data-urlencode "filesize=$FILESIZE" \
+            --data-urlencode "duration=$DURATION" \
+            --data-urlencode "slug=${{ inputs.slug }}"
+
+      # =======================
+      # b6: FAILURE callback
+      # =======================
+      - name: Callback failure
+        if: failure()
+        run: |
+          curl -G "https://cp.ssplay.net/cf-gh.php" \
+            --data-urlencode "stt=10" \
+            --data-urlencode "slug=${{ inputs.slug }}"
