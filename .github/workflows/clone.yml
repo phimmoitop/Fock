@@ -1,0 +1,155 @@
+name: M3U8 to Repo
+
+on:
+  workflow_dispatch:
+    inputs:
+      link:
+        description: "Link"
+        required: true
+      slug:
+        description: "Slug"
+        required: true
+      account:
+        description: "Account"
+        required: true
+      token:
+        description: "Token"
+        required: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # =======================
+      # Checkout (bắt buộc cho runner)
+      # =======================
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      # =======================
+      # Setup FFmpeg (prebuilt)
+      # =======================
+      - name: Setup FFmpeg
+        uses: FedericoCarboni/setup-ffmpeg@v2
+
+      # =======================
+      # Install required tools
+      # =======================
+      - name: Install system tools
+        run: |
+          sudo apt update
+          sudo apt install -y curl git jq
+
+      # =======================
+      # b1: Create private repo
+      # =======================
+      - name: Create private repository
+        run: |
+          RESPONSE=$(curl -s -X POST https://api.github.com/user/repos \
+            -H "Authorization: token ${{ inputs.token }}" \
+            -H "Accept: application/vnd.github+json" \
+            -d "{
+              \"name\": \"${{ inputs.slug }}\",
+              \"private\": true
+            }")
+
+          echo "$RESPONSE" | jq -e '.id' > /dev/null || {
+            echo "Create repo failed"
+            exit 1
+          }
+
+      # =======================
+      # b2: Download m3u8 → mp4
+      # =======================
+      - name: Download m3u8 to mp4
+        run: |
+          ffmpeg -y -loglevel error \
+            -i "${{ inputs.link }}" \
+            -c copy \
+            -bsf:a aac_adtstoasc \
+            "${{ inputs.slug }}.mp4"
+
+      # =======================
+      # b3: Verify mp4
+      # =======================
+      - name: Verify video file
+        run: |
+          set +e
+          FILE="${{ inputs.slug }}.mp4"
+
+          for i in {1..10}; do
+            [ -f "$FILE" ] && break
+            sleep 1
+          done
+
+          SIZE=$(stat -c%s "$FILE" 2>/dev/null || echo 0)
+          if [ "$SIZE" -lt 1000000 ]; then
+            echo "File invalid or too small"
+            exit 1
+          fi
+
+          ffprobe -v error \
+            -show_entries format=duration \
+            -of default=noprint_wrappers=1:nokey=1 \
+            "$FILE" || exit 1
+          set -e
+
+      # =======================
+      # b3.5: Convert mp4 → HLS
+      # =======================
+      - name: Convert to HLS
+        run: |
+          mkdir -p output
+          ffmpeg -i "${{ inputs.slug }}.mp4" \
+            -codec copy \
+            -hls_time 8 \
+            -hls_flags split_by_time+independent_segments \
+            -start_number 10001 \
+            -hls_list_size 0 \
+            -hls_segment_filename "output/${{ inputs.slug }}-index%d.html" \
+            -f hls "output/${{ inputs.slug }}.m3u8"
+
+      # =======================
+      # b4: Upload to private repo
+      # =======================
+      - name: Push HLS to repo
+        run: |
+          git clone https://x-access-token:${{ inputs.token }}@github.com/${{ inputs.github_account }}/${{ inputs.slug }}.git repo
+          cd repo
+
+          cp -r ../output .
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+          git add .
+          git commit -m "Upload HLS for ${{ inputs.slug }}"
+          git push origin main
+
+      # =======================
+      # b5: SUCCESS callback
+      # =======================
+      - name: Callback success
+        if: success()
+        run: |
+          FILESIZE=$(stat -c%s "${{ inputs.slug }}.mp4")
+          DURATION=$(ffprobe -v error \
+            -show_entries format=duration \
+            -of default=noprint_wrappers=1:nokey=1 \
+            "${{ inputs.slug }}.mp4" | cut -d. -f1)
+
+          curl -G "https://cp.ssplay.net/cf-gh.php" \
+            --data-urlencode "stt=8" \
+            --data-urlencode "filesize=$FILESIZE" \
+            --data-urlencode "duration=$DURATION" \
+            --data-urlencode "slug=${{ inputs.slug }}"
+
+      # =======================
+      # b5: FAILURE callback
+      # =======================
+      - name: Callback failure
+        if: failure()
+        run: |
+          curl -G "https://cp.ssplay.net/cf-gh.php" \
+            --data-urlencode "stt=10" \
+            --data-urlencode "slug=${{ inputs.slug }}"
