@@ -86,11 +86,13 @@ jobs:
           mkdir -p output
           ffmpeg -i "${{ inputs.slug }}.mp4" -codec copy -hls_time 8 -hls_list_size 0 -start_number 10001 -hls_segment_filename "output/${{ inputs.slug }}-index%d.html" -f hls "output/${{ inputs.slug }}.m3u8"
 
+            # =======================
+      # b5: Upload HLS (chunked push)
       # =======================
-      # b5: Upload HLS (safe push)
-      # =======================
-      - name: Push HLS to repo
+      - name: Push HLS to repo (chunked)
         run: |
+          set -e
+
           git config --global http.postBuffer 524288000
 
           git clone https://x-access-token:${{ inputs.token }}@github.com/${{ inputs.account }}/${{ inputs.slug }}.git repo
@@ -99,17 +101,39 @@ jobs:
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
 
-          # 1. push m3u8 first
+          # 1. push m3u8 first (small, safe)
           cp ../output/${{ inputs.slug }}.m3u8 .
           git add *.m3u8
           git commit -m "Add m3u8 for ${{ inputs.slug }}" || true
-          git push origin main || true
-
-          # 2. push index html in batches
-          cp ../output/*.html .
-          git add *.html
-          git commit -m "Add HLS segments for ${{ inputs.slug }}" || true
           git push origin main
+
+          # 2. chunk push html segments
+          cp ../output/*.html .
+
+          FILES=($(ls *.html | sort))
+          CHUNK=500
+          TOTAL=${#FILES[@]}
+          INDEX=0
+          PART=1
+
+          while [ $INDEX -lt $TOTAL ]; do
+            echo "Pushing chunk $PART..."
+
+            git reset
+            COUNT=0
+
+            while [ $COUNT -lt $CHUNK ] && [ $INDEX -lt $TOTAL ]; do
+              git add "${FILES[$INDEX]}"
+              INDEX=$((INDEX+1))
+              COUNT=$((COUNT+1))
+            done
+
+            git commit -m "Add HLS segments part $PART for ${{ inputs.slug }}"
+            git push origin main
+
+            PART=$((PART+1))
+          done
+
 
 
       # =======================
