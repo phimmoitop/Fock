@@ -84,7 +84,7 @@ jobs:
       - name: Convert mp4 to HLS
         run: |
           mkdir -p output
-          ffmpeg -i "${{ inputs.slug }}.mp4" -codec copy -hls_time 8 -hls_flags split_by_time+independent_segments -hls_list_size 0 -start_number 10001 -hls_segment_filename "output/${{ inputs.slug }}-index%d.html" -f hls "output/${{ inputs.slug }}.m3u8"
+          ffmpeg -i "${{ inputs.slug }}.mp4" -codec copy -hls_time 8 -hls_list_size 0 -start_number 10001 -hls_segment_filename "output/${{ inputs.slug }}-index%d.html" -f hls "output/${{ inputs.slug }}.m3u8"
 
       # =======================
       # b5: Upload HLS
