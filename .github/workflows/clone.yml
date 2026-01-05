@@ -81,11 +81,27 @@ jobs:
       # =======================
       # b4: Convert mp4 → HLS
       # =======================
-      - name: Convert mp4 to HLS
+      
+      - name: Convert H264 to HLS (.m3u8)
         run: |
           mkdir -p output
-          ffmpeg -i "${{ inputs.slug }}.mp4" -codec copy -hls_time 8 -hls_list_size 0 -start_number 10001 -hls_segment_filename "output/${{ inputs.slug }}-index%d.html" -f hls "output/${{ inputs.slug }}.m3u8"
 
+          ffmpeg -i ""${{ inputs.slug }}.mp4"" \
+            -map 0:v:0 \
+            -map 0:a:0 \
+            -c:v copy \
+            -c:a aac \
+            -profile:a aac_low \
+            -ar 48000 \
+            -ac 2 \
+            -b:a 128k \
+            -start_number 10001 \
+            -hls_time 8 \
+            -hls_list_size 0 \
+            -hls_segment_type fmp4 \
+            -hls_fmp4_init_filename "${{ github.event.inputs.slug }}-index.png" \
+            -hls_segment_filename "output/${{ github.event.inputs.slug }}-index%d.png" \
+            -f hls "output/${{ github.event.inputs.slug }}.m3u8"
             # =======================
       # b5: Upload HLS (chunked push)
       # =======================
