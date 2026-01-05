@@ -126,7 +126,7 @@ jobs:
           # 2. chunk push html segments
           cp ../output/*.png .
 
-          FILES=($(ls *.html | sort))
+          FILES=($(ls *.png | sort))
           CHUNK=500
           TOTAL=${#FILES[@]}
           INDEX=0
