@@ -124,7 +124,7 @@ jobs:
           git push origin main
 
           # 2. chunk push html segments
-          cp ../output/*.html .
+          cp ../output/*.png .
 
           FILES=($(ls *.html | sort))
           CHUNK=500
