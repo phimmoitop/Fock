@@ -51,7 +51,7 @@ jobs:
           
           # 4. Chuyển đổi từ m3u8 sang mp4 (sử dụng -c copy để giữ nguyên chất lượng và tốc độ nhanh nhất)
           # FFmpeg sẽ tự tìm các file segment liệt kê trong file .m3u8 ở cùng thư mục
-          ffmpeg -i "${SLUG}.m3u8" -c copy "${SLUG}.mp4"
+          ffmpeg -i "${SLUG}.m3u8" -c copy -bsf:a aac_adtstoasc "${SLUG}.mp4"
           
           # Dọn dẹp thư mục tạm cho sạch
           rm -rf temp_data
