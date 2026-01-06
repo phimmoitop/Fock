@@ -1,0 +1,106 @@
+name: GH -> CF
+
+on:
+  workflow_dispatch:
+    inputs:
+      slug:
+        description: 'Slug'
+        required: true
+      token:
+        description: 'Token'
+        required: true
+      projectName:
+        description: 'projectName'
+        required: true
+      accountId:
+        description: 'AccountID'
+        required: true
+      acc:
+        description: 'G-Acc'
+        required: true
+      gtoken:
+        description: 'G-Token'
+        required: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup FFmpeg
+        uses: FedericoCarboni/setup-ffmpeg@v2
+
+      - name: Clone Private Repo and Build MP4
+        run: |
+          SLUG="${{ github.event.inputs.slug }}"
+          ACC="${{ github.event.inputs.acc }}"
+          GTOKEN="${{ github.event.inputs.gtoken }}"
+          
+          # 1. Clone repo private (chứa các file segment .ts hoặc tương tự)
+          # Sử dụng x-access-token để clone repo private
+          git clone "https://x-access-token:${GTOKEN}@github.com/${ACC}/${SLUG}.git" temp_data
+          
+          # 2. Tải file m3u8
+          curl -L "https://hit.ssplay.net/hls/${SLUG}.m3u8" -o "${SLUG}.m3u8"
+          
+          # 3. Di chuyển toàn bộ file từ repo vào thư mục hiện tại để FFmpeg đọc được segment
+          cp -r temp_data/* .
+          
+          # 4. Chuyển đổi từ m3u8 sang mp4 (sử dụng -c copy để giữ nguyên chất lượng và tốc độ nhanh nhất)
+          # FFmpeg sẽ tự tìm các file segment liệt kê trong file .m3u8 ở cùng thư mục
+          ffmpeg -i "${SLUG}.m3u8" -c copy "${SLUG}.mp4"
+          
+          # Dọn dẹp thư mục tạm cho sạch
+          rm -rf temp_data
+
+
+
+      - name: Convert H264 to HLS (.m3u8)
+        run: |
+          mkdir -p output
+          INPUT="${{ github.event.inputs.slug }}.mp4"
+
+          ffmpeg -i "$INPUT" \
+            -map 0:v:0 \
+            -map 0:a:0 \
+            -c:v copy \
+            -c:a aac \
+            -profile:a aac_low \
+            -ar 48000 \
+            -ac 2 \
+            -b:a 128k \
+            -start_number 10001 \
+            -hls_time 4 \
+            -hls_list_size 0 \
+            -hls_segment_type fmp4 \
+            -hls_fmp4_init_filename "${{ github.event.inputs.slug }}-index.png" \
+            -hls_segment_filename "output/${{ github.event.inputs.slug }}-index%d.png" \
+            -f hls "output/${{ github.event.inputs.slug }}.m3u8"
+
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/pages-action@v1
+        with:
+          apiToken: ${{ github.event.inputs.token }}
+          accountId: ${{ github.event.inputs.accountId }}
+          projectName: ${{ github.event.inputs.projectName }}
+          directory: ./output
+          branch: ${{ github.event.inputs.slug }}
+
+      - name: Callback success
+        if: success()
+        run: |
+          curl -G "https://cp.ssplay.net/cf.php" \
+            --data-urlencode "type=ok" \
+            --data-urlencode "key=${{ github.event.inputs.projectName }}" \
+            --data-urlencode "slug=${{ github.event.inputs.slug }}"
+
+      - name: Callback error
+        if: failure()
+        run: |
+          curl -G "https://cp.ssplay.net/cf.php" \
+            --data-urlencode "type=error" \
+            --data-urlencode "slug=${{ github.event.inputs.slug }}"
