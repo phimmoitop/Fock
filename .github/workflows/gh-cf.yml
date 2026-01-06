@@ -30,8 +30,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Setup FFmpeg
-        uses: FedericoCarboni/setup-ffmpeg@v2
+      - name: Install ffmpeg
+        run: |
+          sudo apt update
+          sudo apt install -y ffmpeg curl git jq
 
       - name: Clone Repo and Prepare Files
         run: |
