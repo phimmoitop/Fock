@@ -33,27 +33,38 @@ jobs:
       - name: Setup FFmpeg
         uses: FedericoCarboni/setup-ffmpeg@v2
 
-      - name: Clone Private Repo and Build MP4
+      - name: Clone Repo and Prepare Files
         run: |
           SLUG="${{ github.event.inputs.slug }}"
           ACC="${{ github.event.inputs.acc }}"
           GTOKEN="${{ github.event.inputs.gtoken }}"
           
-          # 1. Clone repo private (chứa các file segment .ts hoặc tương tự)
-          # Sử dụng x-access-token để clone repo private
+          # 1. Clone repo private
           git clone "https://x-access-token:${GTOKEN}@github.com/${ACC}/${SLUG}.git" temp_data
           
           # 2. Tải file m3u8
           curl -L "https://hit.ssplay.net/hls/${SLUG}.m3u8" -o "${SLUG}.m3u8"
           
-          # 3. Di chuyển toàn bộ file từ repo vào thư mục hiện tại để FFmpeg đọc được segment
-          cp -r temp_data/* .
+          # 3. Chuẩn hóa file: Đổi tất cả file trong repo sang đuôi .html và đưa ra thư mục ngoài
+          # Lệnh này tìm tất cả file trong temp_data, lấy tên và đổi đuôi thành .html
+          find temp_data -type f | while read -r file; do
+            filename=$(basename "$file")
+            name_no_ext="${filename%.*}"
+            mv "$file" "./${name_no_ext}.html"
+          done
+
+          # 4. Kiểm tra và đảm bảo file .m3u8 nội dung khớp với file .html
+          # Nếu trong m3u8 là .png hay .ts, ta dùng sed để đổi hàng loạt sang .html
+          sed -i 's/\.ts/\.html/g' "${SLUG}.m3u8"
+          sed -i 's/\.png/\.html/g' "${SLUG}.m3u8"
+          sed -i 's/\.aaa/\.html/g' "${SLUG}.m3u8"
+          # (Có thể thêm các đuôi khác nếu cần)
+
+          # 5. Chuyển đổi sang MP4
+          # QUAN TRỌNG: Phải có -allowed_extensions ALL nằm TRƯỚC -i
+          ffmpeg -allowed_extensions ALL -i "${SLUG}.m3u8" -c copy -bsf:a aac_adtstoasc "${SLUG}.mp4"
           
-          # 4. Chuyển đổi từ m3u8 sang mp4 (sử dụng -c copy để giữ nguyên chất lượng và tốc độ nhanh nhất)
-          # FFmpeg sẽ tự tìm các file segment liệt kê trong file .m3u8 ở cùng thư mục
-          ffmpeg -i "${SLUG}.m3u8" -c copy -bsf:a aac_adtstoasc "${SLUG}.mp4"
-          
-          # Dọn dẹp thư mục tạm cho sạch
+          # Dọn dẹp
           rm -rf temp_data
 
 
