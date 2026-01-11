@@ -35,7 +35,7 @@ jobs:
           sudo apt update
           sudo apt install -y ffmpeg curl git jq
 
-      - name: Clone Repo and Prepare Files
+      - name: Process and Convert to HLS
         run: |
           SLUG="${{ github.event.inputs.slug }}"
           ACC="${{ github.event.inputs.acc }}"
@@ -44,55 +44,45 @@ jobs:
           # 1. Clone repo private
           git clone "https://x-access-token:${GTOKEN}@github.com/${ACC}/${SLUG}.git" temp_data
           
-          # 2. Tải file m3u8
-          curl -L "https://hit.ssplay.net/hls/${SLUG}.m3u8" -o "${SLUG}.m3u8"
+          # 2. Tải file m3u8 gốc
+          curl -L "https://hit.ssplay.net/hls/${SLUG}.m3u8" -o "input_${SLUG}.m3u8"
           
-          # 3. Chuẩn hóa file: Đổi tất cả file trong repo sang đuôi .html và đưa ra thư mục ngoài
-          # Lệnh này tìm tất cả file trong temp_data, lấy tên và đổi đuôi thành .html
+          # 3. Chuẩn hóa file: Đổi tất cả file segments sang đuôi .html
+          # Giữ file trong thư mục hiện tại để ffmpeg dễ tìm
           find temp_data -type f | while read -r file; do
             filename=$(basename "$file")
             name_no_ext="${filename%.*}"
             mv "$file" "./${name_no_ext}.html"
           done
 
-          # 4. Kiểm tra và đảm bảo file .m3u8 nội dung khớp với file .html
-          # Nếu trong m3u8 là .png hay .ts, ta dùng sed để đổi hàng loạt sang .html
-          sed -i 's/\.ts/\.html/g' "${SLUG}.m3u8"
-          sed -i 's/\.png/\.html/g' "${SLUG}.m3u8"
-          sed -i 's/\.aaa/\.html/g' "${SLUG}.m3u8"
-          # (Có thể thêm các đuôi khác nếu cần)
+          # 4. Sửa file m3u8 để khớp với các file .html đã đổi tên
+          sed -i 's/\.ts/\.html/g' "input_${SLUG}.m3u8"
+          sed -i 's/\.png/\.html/g' "input_${SLUG}.m3u8"
+          sed -i 's/\.aaa/\.html/g' "input_${SLUG}.m3u8"
+          sed -i 's/\.jpg/\.html/g' "input_${SLUG}.m3u8"
 
-          # 5. Chuyển đổi sang MP4
-          # QUAN TRỌNG: Phải có -allowed_extensions ALL nằm TRƯỚC -i
-          ffmpeg -allowed_extensions ALL -i "${SLUG}.m3u8" -c copy -bsf:a aac_adtstoasc "${SLUG}.mp4"
+          # 5. GỘP BƯỚC: Từ m3u8 (html segments) -> Encode Audio -> Ra HLS mới (.png)
+          # -allowed_extensions ALL: Cho phép ffmpeg đọc các file .html như là transport stream
+          # -c:v copy: Giữ nguyên video để xử lý nhanh (không tốn CPU)
+          # -c:a aac ...: Encode lại audio để sửa lỗi âm thanh không chuẩn
           
-          # Dọn dẹp
-          rm -rf temp_data
-
-
-
-      - name: Convert H264 to HLS (.m3u8)
-        run: |
           mkdir -p output
-          INPUT="${{ github.event.inputs.slug }}.mp4"
-
-          ffmpeg -i "$INPUT" \
-            -map 0:v:0 \
-            -map 0:a:0 \
+          ffmpeg -allowed_extensions ALL -i "input_${SLUG}.m3u8" \
             -c:v copy \
             -c:a aac \
-            -profile:a aac_low \
+            -b:a 128k \
             -ar 48000 \
             -ac 2 \
-            -b:a 128k \
             -start_number 10001 \
             -hls_time 4 \
             -hls_list_size 0 \
             -hls_segment_type fmp4 \
-            -hls_fmp4_init_filename "${{ github.event.inputs.slug }}-index.png" \
-            -hls_segment_filename "output/${{ github.event.inputs.slug }}-index%d.png" \
-            -f hls "output/${{ github.event.inputs.slug }}.m3u8"
-
+            -hls_fmp4_init_filename "${SLUG}-index.png" \
+            -hls_segment_filename "output/${SLUG}-index%d.png" \
+            -f hls "output/${SLUG}.m3u8"
+          
+          # Dọn dẹp file tạm
+          rm -rf temp_data *.html "input_${SLUG}.m3u8"
 
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/pages-action@v1
