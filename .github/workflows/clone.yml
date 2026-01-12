@@ -56,7 +56,7 @@ jobs:
       # =======================
       - name: Download m3u8 to mp4
         run: |
-          ffmpeg -i "${{ inputs.link }}" -c copy -bsf:a aac_adtstoasc "${{ inputs.slug }}.mp4"
+          ffmpeg -i "${{ inputs.link }}" -c:v copy -c:a aac -b:a 128k "${{ inputs.slug }}.mp4"
 
       # =======================
       # b3: Verify mp4
@@ -86,22 +86,18 @@ jobs:
         run: |
           mkdir -p output
 
-          ffmpeg -i ""${{ inputs.slug }}.mp4"" \
-            -map 0:v:0 \
-            -map 0:a:0 \
-            -c:v copy \
-            -c:a aac \
-            -profile:a aac_low \
-            -ar 48000 \
-            -ac 2 \
-            -b:a 128k \
-            -start_number 10001 \
-            -hls_time 8 \
-            -hls_list_size 0 \
-            -hls_segment_type fmp4 \
-            -hls_fmp4_init_filename "${{ github.event.inputs.slug }}-index.png" \
-            -hls_segment_filename "output/${{ github.event.inputs.slug }}-index%d.png" \
-            -f hls "output/${{ github.event.inputs.slug }}.m3u8"
+          ffmpeg -i "${{ inputs.slug }}.mp4" \
+          -map 0:v:0 \
+          -map 0:a:0 \
+          -c:v copy \
+          -c:a copy \
+          -start_number 10001 \
+          -hls_time 8 \
+          -hls_list_size 0 \
+          -hls_segment_type fmp4 \
+          -hls_fmp4_init_filename "${{ github.event.inputs.slug }}-index.png" \
+          -hls_segment_filename "output/${{ github.event.inputs.slug }}-index%d.png" \
+          -f hls "output/${{ github.event.inputs.slug }}.m3u8"
             # =======================
       # b5: Upload HLS (chunked push)
       # =======================
