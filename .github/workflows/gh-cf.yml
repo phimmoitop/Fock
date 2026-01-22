@@ -68,11 +68,10 @@ jobs:
           
           mkdir -p output
           ffmpeg -allowed_extensions ALL -i "input_${SLUG}.m3u8" \
+            -map 0:v:0 \
+            -map 0:a:0 \
             -c:v copy \
-            -c:a aac \
-            -b:a 128k \
-            -ar 48000 \
-            -ac 2 \
+            -c:a copy \
             -start_number 10001 \
             -hls_time 4 \
             -hls_list_size 0 \
