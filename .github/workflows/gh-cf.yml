@@ -72,6 +72,7 @@ jobs:
             -map 0:a:0 \
             -c:v copy \
             -c:a copy \
+            -bsf:a aac_adtstoasc \
             -start_number 10001 \
             -hls_time 4 \
             -hls_list_size 0 \
