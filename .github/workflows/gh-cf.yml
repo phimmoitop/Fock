@@ -30,10 +30,15 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Install ffmpeg
+      # Bước này bỏ qua update nếu không cần thiết
+      - name: Install Tools
         run: |
-          sudo apt update
-          sudo apt install -y ffmpeg curl git jq
+          # Kiểm tra nếu chưa có jq thì mới cài, ffmpeg thường đã có sẵn
+          if ! command -v jq &> /dev/null; then
+            sudo apt-get install -y jq
+          fi
+          # Nếu muốn chắc chắn có ffmpeg bản mới nhất qua apt mà không tốn thời gian update lâu:
+          # sudo apt-get install -y ffmpeg
 
       - name: Process and Convert to HLS
         run: |
