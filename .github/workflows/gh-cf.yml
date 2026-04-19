@@ -37,16 +37,19 @@ jobs:
           path: ~/apt-cache
           key: ${{ runner.os }}-apt-ffmpeg-v1
 
-      - name: Install ffmpeg
+      - name: Setup FFmpeg
+        uses: bcomnes/setup-ffmpeg@v3
+        with:
+          ffmpeg-version: 'release' # Tự động lấy bản Stable mới nhất
+
+      # Các tool khác như curl, git, jq mặc định Ubuntu-latest ĐÃ CÓ SẴN
+      # Bạn không cần chạy lệnh cài đặt chúng nữa để tiết kiệm thời gian
+      
+      - name: Check version
         run: |
-          # Liên kết thư mục cache vào hệ thống
-          mkdir -p ~/apt-cache
-          sudo rm -rf /var/cache/apt/archives
-          sudo ln -s ~/apt-cache /var/cache/apt/archives
+          ffmpeg -version
+          jq --version
           
-          # Cập nhật danh sách (bắt buộc) nhưng cài đặt sẽ không tốn thời gian tải
-          sudo apt update
-          sudo apt install -y ffmpeg curl git jq
       - name: Process and Convert to HLS
         run: |
           SLUG="${{ github.event.inputs.slug }}"
