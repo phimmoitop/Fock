@@ -25,14 +25,32 @@ on:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    container:
-      image: jrottenberg/ffmpeg:6.1-ubuntu2204
+
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v3
-      
-      - name: Run ffmpeg
-        run: ffmpeg -version
+
+      # 1. Khai báo Cache cho thư mục chứa các file cài đặt (.deb)
+      - name: Cache APT Packages
+        uses: actions/cache@v3
+        with:
+          path: /var/cache/apt/archives
+          key: ${{ runner.os }}-apt-ffmpeg-stable-v1
+
+      # 2. Cài đặt thông minh
+      - name: Install ffmpeg (APT mode with Force Cache)
+        run: |
+          # Ép hệ thống không tự động xóa file sau khi tải
+          sudo rm -f /etc/apt/apt.conf.d/docker-clean
+          
+          # Cập nhật danh sách nhưng chạy cực nhanh (-qq)
+          sudo apt-get update -qq
+          
+          # Kiểm tra xem file đã có trong cache chưa, nếu chưa thì tải, có rồi thì cài luôn
+          sudo apt-get install -y ffmpeg curl git jq
+          
+          # Dọn dẹp để đảm bảo cache sạch (tùy chọn)
+          sudo apt-get autoclean
           
       - name: Process and Convert to HLS
         run: |
