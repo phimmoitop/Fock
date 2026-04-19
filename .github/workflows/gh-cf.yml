@@ -25,12 +25,28 @@ on:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    container:
-      image: jrottenberg/ffmpeg:4.4-ubuntu # Image đã cài sẵn ffmpeg cực chuẩn
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
 
+      # Bước này "bốc" toàn bộ các file cài đặt đã lưu từ lần trước về máy ảo mới
+      - name: Cache APT Packages
+        uses: actions/cache@v3
+        with:
+          path: ~/apt-cache
+          key: ${{ runner.os }}-apt-ffmpeg-v1
+
+      - name: Install ffmpeg
+        run: |
+          # Liên kết thư mục cache vào hệ thống
+          mkdir -p ~/apt-cache
+          sudo rm -rf /var/cache/apt/archives
+          sudo ln -s ~/apt-cache /var/cache/apt/archives
+          
+          # Cập nhật danh sách (bắt buộc) nhưng cài đặt sẽ không tốn thời gian tải
+          sudo apt update
+          sudo apt install -y ffmpeg curl git jq
       - name: Process and Convert to HLS
         run: |
           SLUG="${{ github.event.inputs.slug }}"
