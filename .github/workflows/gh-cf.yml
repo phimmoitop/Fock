@@ -67,12 +67,20 @@ jobs:
           # -c:a aac ...: Encode lại audio để sửa lỗi âm thanh không chuẩn
           
           mkdir -p output
-          ffmpeg -allowed_extensions ALL -i "input_${SLUG}.m3u8" \
-            -map 0:v:0 \
-            -map 0:a:0 \
+
+          # BƯỚC A: Gộp tất cả segment lẻ thành 1 file MP4 duy nhất và FIX lỗi Timestamp
+          # -fflags +genpts: Ép FFmpeg tạo lại mốc thời gian dựa trên m3u8
+          ffmpeg -allowed_extensions ALL -fflags +genpts -i "input_${SLUG}.m3u8" \
             -c:v copy \
             -c:a copy \
-            -bsf:a aac_adtstoasc \
+            -avoid_negative_ts make_zero \
+            "temp_full_${SLUG}.mp4"
+          
+          # BƯỚC B: Từ file MP4 "sạch", cắt ra định dạng fmp4 để upload lên Cloudflare
+          # Lúc này đầu vào là 1 file duy nhất nên FFmpeg sẽ chia segment cực kỳ chính xác
+          ffmpeg -i "temp_full_${SLUG}.mp4" \
+            -c:v copy \
+            -c:a copy \
             -start_number 10001 \
             -hls_time 4 \
             -hls_list_size 0 \
@@ -81,8 +89,8 @@ jobs:
             -hls_segment_filename "output/${SLUG}-index%d.png" \
             -f hls "output/${SLUG}.m3u8"
           
-          # Dọn dẹp file tạm
-          rm -rf temp_data *.html "input_${SLUG}.m3u8"
+          # Dọn dẹp
+          rm -rf temp_data *.html "input_${SLUG}.m3u8" "temp_full_${SLUG}.mp4"
 
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/pages-action@v1
