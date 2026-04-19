@@ -30,18 +30,17 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Setup FFmpeg
-        uses: bcomnes/setup-ffmpeg@v3
+      - name: Install FFmpeg
+        uses: taiki-e/install-action@v2
         with:
-          ffmpeg-version: 'release' # Tự động lấy bản Stable mới nhất
+          tool: ffmpeg
 
-      # Các tool khác như curl, git, jq mặc định Ubuntu-latest ĐÃ CÓ SẴN
-      # Bạn không cần chạy lệnh cài đặt chúng nữa để tiết kiệm thời gian
-      
-      - name: Check version
+      # 2. Kiểm tra nhanh (Ubuntu 24.04 đã có sẵn curl, git, jq bản mới)
+      - name: Verify Tools
         run: |
           ffmpeg -version
           jq --version
+          curl --version
           
       - name: Process and Convert to HLS
         run: |
