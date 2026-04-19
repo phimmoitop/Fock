@@ -25,21 +25,11 @@ on:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-
+    container:
+      image: jrottenberg/ffmpeg:4.4-ubuntu # Image đã cài sẵn ffmpeg cực chuẩn
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
-
-      - name: Install FFmpeg (Fast & Stable)
-        run: |
-          # Tải bản static build từ johnvansickle (nguồn cực kỳ uy tín cho FFmpeg binary)
-          wget https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz
-          tar xvf ffmpeg-release-amd64-static.tar.xz
-          # Di chuyển vào thư mục bin hệ thống hoặc tạo alias
-          sudo mv ffmpeg-*-amd64-static/ffmpeg /usr/local/bin/
-          sudo mv ffmpeg-*-amd64-static/ffprobe /usr/local/bin/
-          # Kiểm tra lại
-          ffmpeg -version
 
       - name: Process and Convert to HLS
         run: |
