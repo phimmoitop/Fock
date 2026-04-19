@@ -30,13 +30,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # Bước này "bốc" toàn bộ các file cài đặt đã lưu từ lần trước về máy ảo mới
-      - name: Cache APT Packages
-        uses: actions/cache@v3
-        with:
-          path: ~/apt-cache
-          key: ${{ runner.os }}-apt-ffmpeg-v1
-
       - name: Setup FFmpeg
         uses: bcomnes/setup-ffmpeg@v3
         with:
