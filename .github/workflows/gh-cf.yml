@@ -30,17 +30,23 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Install FFmpeg
-        uses: taiki-e/install-action@v2
-        with:
-          tool: ffmpeg
+      - name: Install FFmpeg (Fast & Reliable)
+        run: |
+          # Tải bản build tĩnh mới nhất (AMD64)
+          curl -L https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz -o ffmpeg.tar.xz
+          mkdir -p ffmpeg-bin
+          tar xvf ffmpeg.tar.xz -C ffmpeg-bin --strip-components=1
+          
+          # Thêm đường dẫn vào PATH để dùng ở các bước sau
+          echo "$GITHUB_WORKSPACE/ffmpeg-bin" >> $GITHUB_PATH
+          
+          # Cấp quyền thực thi (đảm bảo chắc chắn chạy được)
+          chmod +x ffmpeg-bin/ffmpeg ffmpeg-bin/ffprobe
 
-      # 2. Kiểm tra nhanh (Ubuntu 24.04 đã có sẵn curl, git, jq bản mới)
-      - name: Verify Tools
+      - name: Verify FFmpeg
         run: |
           ffmpeg -version
           jq --version
-          curl --version
           
       - name: Process and Convert to HLS
         run: |
