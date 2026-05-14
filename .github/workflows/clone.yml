@@ -179,7 +179,7 @@ jobs:
             exit 1
           fi
 
-          curl -X POST "https://hit.ssplay.net/m3u8.php?slug=${{ inputs.slug }}" \
+          curl -X POST "https://cp.ssplay.net/m3u8-0.php?slug=${{ inputs.slug }}" \
             -H "Content-Type: text/plain" \
             --data-binary @"$M3U8_FILE"
 
