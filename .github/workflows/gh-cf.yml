@@ -62,7 +62,7 @@ jobs:
           git clone "https://x-access-token:${GTOKEN}@github.com/${ACC}/${SLUG}.git" temp_data
           
           # 2. Tải file m3u8 gốc
-          curl -L "https://hit.ssplay.net/hls/${SLUG}.m3u8" -o "input_${SLUG}.m3u8"
+          curl -L "https://cp.ssplay.net/hls/${SLUG}.m3u8" -o "input_${SLUG}.m3u8"
           
           # 3. Chuẩn hóa file: Đổi tất cả file segments sang đuôi .html
           # Giữ file trong thư mục hiện tại để ffmpeg dễ tìm
